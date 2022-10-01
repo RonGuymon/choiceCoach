@@ -39,9 +39,12 @@ keyComps <- objPerm %>%
 
 
 # Enter points for first row----
-firstRow <- keyComps %>% dplyr::filter(firstRow == 1) %>% dplyr::select(-firstRow)
+firstRow <- keyComps %>% 
+  dplyr::filter(firstRow == 1) %>% 
+  dplyr::select(-firstRow)
 firstRow$points <- c(23,50,50,50)
-firstRow %<>% dplyr::mutate(
+firstRow %<>% 
+  dplyr::mutate(
   v1timesBetterThanV2 = points/(100-points)
 )
 

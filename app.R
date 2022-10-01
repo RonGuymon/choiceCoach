@@ -72,7 +72,7 @@ body <- dashboardBody(uiOutput("body")
                       )
 )   
 # UI----
-ui <- dashboardPage(title = "NYSDOT", header, sidebar, body)
+ui <- dashboardPage(title = "choiceCoach", header, sidebar, body)
 # Login and loading boxes----
 login <- fluidPage(
   tags$style(".skin-blue .content{background-image: url(\"nyLogo.png\");
