@@ -322,7 +322,6 @@ server <- function(input, output) {
     for(o in 1:length(objectives)){
       opPointsObj <- opPoints %>% dplyr::filter(objective == objectives[o])
       for(d in 1:(max(opPointsObj$rowNum))){
-        cat('\nd =', d)
         newRow <- data.frame(v2 = paste0('option_', d)
                              , v1 = paste0('option_', d)
                              , permutation = paste0('option_', d, '__option_', d)
@@ -351,43 +350,17 @@ server <- function(input, output) {
       owsdOp %<>% bind_rows(owsd)
     }
     
+    # Join objective name to the owsdOP df
+    owsdOp <- opPoints %>%
+      select(objective, objectiveName) %>%
+      unique() %>%
+      right_join(owsdOp, by = 'objective')
+    
+    # Group by option and 
     output$opPoints <- renderDataTable({
       datatable(owsdOp,
                 options = list(scrollX = TRUE))
     })
-#     opPointsOnly <- data.frame()
-#     for(r in 1:max(opPoints$rowNum)){
-#       tm <- oPoints %>%
-#         dplyr::filter(rowNum == r) %>%
-#         dplyr::pull(points) %>%
-#         matrix(nrow = 1)
-#       oPointsOnly %<>% bind_rows(data.frame(tm))
-#     }
-#     names(oPointsOnly) <- unique(oPoints$objectiveName1)
-# 
-# 
-    # # Calculate odds ratios
-    # oRatios <- oPointsOnly / (100-oPointsOnly)
-    # # Calculate normalized pcts by dividing odds ratios by sum of odds ratio for each column
-    # oNormalized <- apply(oRatios, 2, function(x) x/sum(x)) %>%
-    #   data.frame()
-    # # Objective weights and standard deviations
-    # owsd <- data.frame(objective = names(oNormalized) %>% gsub('\\.', ' ', .)
-    #                    , weights = apply(oNormalized, 1, mean)
-    #                    , sd = apply(oNormalized, 1, sd)
-    # )
-    # 
-    # output$obWeightDonut <- renderPlotly({
-    #   plot_ly(data = owsd
-    #           , labels = ~objective
-    #           , values = ~weights
-    #           , textinfo = 'label+percent'
-    #   ) %>%
-    #     add_pie(hole = .6) %>%
-    #     layout(title = "Objective Weights",  showlegend = F,
-    #            xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-    #            yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
-    # })
   })
   
 }
