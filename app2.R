@@ -50,7 +50,8 @@ ui <- dashboardPage(
         , actionButton('finalEvaluationButton', label = 'Make the final evaluation')
       )
       , box(
-        dataTableOutput('opPoints')
+        plotlyOutput('finalPlot')
+        , dataTableOutput('opPoints')
       )
     )
   )
@@ -179,11 +180,11 @@ server <- function(input, output) {
       dplyr::arrange(rowNum, colNum)
     
     # Calculate weights and sd
-    owsd <- ptw(oPoints, nameCol = 'objectiveName1', obOp = 'objective')
+    owsdObjectives <<- ptw(oPoints, nameCol = 'objectiveName1', obOp = 'objective')
     
     # Plot the objective weights as a donut
     output$obWeightDonut <- renderPlotly({
-      plot_ly(data = owsd
+      plot_ly(data = owsdObjectives
               , labels = ~objective
               , values = ~weights
               , textinfo = 'label+percent'
@@ -353,8 +354,36 @@ server <- function(input, output) {
     # Join objective name to the owsdOP df
     owsdOp <- opPoints %>%
       select(objective, objectiveName) %>%
+      left_join(owsdObjectives[,c('objective', 'weights')], by = c('objectiveName' = 'objective')) %>%
+      rename(objectiveWeights = weights) %>%
       unique() %>%
-      right_join(owsdOp, by = 'objective')
+      right_join(owsdOp, by = 'objective') %>%
+      mutate(
+        optionScore = objectiveWeights*weights
+      ) %>%
+      group_by(objectiveName) %>%
+      mutate(
+        scaledOptionScore = optionScore/max(optionScore)
+      ) %>%
+      ungroup() %>%
+      group_by(option) %>%
+      mutate(
+        totalScore = sum(optionScore)
+      ) %>%
+      ungroup() %>%
+      mutate(
+        totalScoreRank = rank(-totalScore, na.last = T, ties.method = 'first')
+      )
+    
+    # Plot
+    output$finalPlot <- renderPlotly({
+      plot_ly(data = owsdOp, x = ~option, y = ~optionScore, type = 'bar'
+             , name = ~objectiveName, color = ~objectiveName) %>%
+        layout(yaxis = list(title = 'Option Score'), barmode = 'stack')
+      })
+    
+    
+      
     
     # Group by option and 
     output$opPoints <- renderDataTable({
