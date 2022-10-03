@@ -1,410 +1,404 @@
-# CHOICE COACH APPLICATION
-library(shinydashboard)
+# Choice Coach
+# Libraries----
 library(shiny)
-library(shinyBS) # For popovers
-library(shinyjs) # For hiding the sidebar by default
+library(shinydashboard)
 library(tidyverse)
-library(data.table)
-library(lubridate)
 library(magrittr)
+library(lubridate)
 library(plotly)
-library(RColorBrewer)
-library(shinycssloaders) # For loading spinners
-library(rhandsontable)
-
-
-# Options (like upload size)----
-options(shiny.maxRequestSize=5000*1024^2)
-# Colors----
-giggColors <- data.frame(colorName = c("fireEngineRed", 
-                                       "deepKoamaru", "persianGreen", "maximumYellowRed", 
-                                       "graniteGray"
-)
-, hex = c("#D12229", "#28335C", "#00A499"
-          , "#F3C454", "#63666A"
-)
-, rgb = c("rgb(209,34,41)", "rgb(40,51,92)", "rgb(0,164,153)"
-          , "rgb(243,196,84)", "rgb(99,102,106)"
-)
-, stringsAsFactors = F)
-
-pavementScoreColors <- c('#000000', "#FF0000", "#FF1100", "#FF2300", "#FF3400", "#FF6900"
-                         , "#FFAF00", "#F7FF00", "#D4FF00", "#7CFF00", "#00FF00", "#D9D9D9")
-pavementScoreLabels <- c(c(0:10, "Unknown"))
-
-nysdotColors <- data.frame(colorName = c('NYSDOT Blue', 'Lighter Blue', 'NYSDOT Orange', 'Lighter Orange', 'Darker Orange')
-                           , colorHex = c('#2471A7', '#5F97BF', '#F4AB2E', '#F9C06B', '#E8900D')
-                           , stringsAsFactors = F)
-
-
-# Trademark pictures----
-customerTrademarkUrl <- "https://static-assets.ny.gov/sites/all/themes/ny_gov/images/nygov-logo.png"
-customerHomepageUrl <- "https://www.dot.ny.gov/index"
-giggTrademarkUrl <- "https://static.wixstatic.com/media/26e767_25b20366bac948fcb4ccb63b511a2147~mv2.png/v1/crop/x_232,y_154,w_407,h_163/fill/w_408,h_172,al_c,lg_1/26e767_25b20366bac948fcb4ccb63b511a2147~mv2.png"
-giggHomepageUrl <- "https://www.datavinci.io/"
-# wd <- getwd()
-############## TEXT BOX STUFF ##############
-##### UI #####
-# Header----
-# header <- dashboardHeader(uiOutput("header"))
-header <- dashboardHeader(
-  title = span(tags$a(href = giggHomepageUrl
-                      , tags$img(src='nyLogo.png'
-                                 , title = "New York Logo and Link"
-                                 , height = "50px"
-                                 , width = "94px"
-                                 , position = "center")
-                      # , style = "padding-left:30px;"
-  )
-  
-  )
-)
-# Sidebar----
-sidebar <- dashboardSidebar(uiOutput("sidebarpanel")
-                            # , width = 350
-                            , collapsed = T
-                            )
-# Body----
-body <- dashboardBody(uiOutput("body")
-                      , shinyjs::useShinyjs() # So that sidebar can open once you login, and to show messages from functions.
-                      , tags$head(
-                        tags$link(rel = "stylesheet", type = "text/css", href = "NYSDOT.css")
-                      )
-)   
+library(DT)
+source('choiceCoachFunctions.R')
 # UI----
-ui <- dashboardPage(title = "choiceCoach", header, sidebar, body)
-# Login and loading boxes----
-login <- fluidPage(
-  tags$style(".skin-blue .content{background-image: url(\"nyLogo.png\");
-             background-repeat: no-repeat;
-             background-size: 55%;
-             background-attachment: fixed;
-             background-position: 45% 17%;
-             background-color: #ffffff;
-             }")
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , fluidRow(
-    column(width = 8, offset = 4
-           , textInput("userName", "Username")
-           , passwordInput("passwd", "Password")
-           , br()
-           , actionButton("Login", "LOG IN",
-                          style = "color: #FFF; 
-                          background-color: #2471A7; 
-                          border-color: #2471A7; 
-                          border-radius: 0;")
-           )
-           )
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-  , br()
-           )
-
-
-
-
-
-##### SERVER #####
-server <- function(input, output, session) {
-  # output$testText <- renderText({wd})
-  # To logout back to login page----
-  login.page = paste0(
-    isolate(session$clientData$url_protocol) # e.g., https
-    , "//"
-    , isolate(session$clientData$url_hostname) # e.g., 127.0.0.1 or 
-    , isolate(session$clientData$url_pathname) # e.g., /
-    , isolate(session$clientData$url_port) # e.g., 1234
-    , isolate(session$clientData$search) # e.g., ?foo=123&bar=somestring
-  )
-  remoteAddress <- isolate(paste(session$clientData$url_hostname
-                                 , session$clientDAta$url_pathname
-                                 , session$clientData$url_port
-                                 , session$clientData$search
-                                 , sep = "_")) # Use this to get ip address of user
-  ######### STEP 2: CREATE OBJECTIVE WEIGHTS ###########
-  observeEvent(input$createObjWeights, {
-    objectives <- c(input$objective1, input$objective2, input$objective3)
-    isolate({updateTabItems(session, "tabs", "objWeights")}) # Automatically navigates to the next tab when the button is selected
-    
-    # Create pairs to compare
-    USER$objPerm <- expand.grid(objectives, objectives, stringsAsFactors = F) %>% 
-      dplyr::mutate(
-        V1 = Var2
-        , V2 = Var1
-        , permutation = case_when(
-          Var1 > Var2 ~ paste0(Var1,Var2)
-          , T ~ paste0(Var2,Var1)
-        )
-        , order = row.names(.)
-      ) %>%
-      dplyr::select(-Var1, -Var2)
-    
-    USER$keyComps <- USER$objPerm %>%
-      dplyr::filter(V1 != V2) %>%
-      .[!duplicated(.$permutation),] %>%
-      group_by(V1) %>%
-      dplyr::mutate(
-        nobs = n()
-      ) %>%
-      ungroup() %>%
-      dplyr::mutate(
-        firstRow = ifelse(nobs == max(nobs), 1, 0)
-      ) %>%
-      dplyr::select(-nobs)
-    
-    USER$firstRow <- USER$keyComps %>% dplyr::filter(firstRow == 1) %>% dplyr::select(-firstRow)
-    
-  })
-  
-  output$objComparisonSliders <- renderUI({
-      lapply(1:nrow(USER$firstRow), function(i){
-          sliderInput(paste0('objWeightComp_', i)
-                      , label = paste0(USER$firstRow$V1[i], ' vs. ', USER$firstRow$V2[i])
-                      , min = 0, max = 100
-                      , value = 50
-                      , step = 1
-          )
-      })
-  })
-  
-  ######### STEP 3: VIEW OBJECTIVE WEIGHTS ###########
-  observeEvent(input$viewObjWeights, {
-    output$objWeightsChart <- renderPlotly({
-      
-      # Infer points for the rest----
-      idf <- expand.grid(objComparisonSliders, stringsAsFactors = F) %>% 
-        dplyr::mutate(
-          V1 = Var2
-          , V2 = Var1
-          , permutation = case_when(
-            Var1 > Var2 ~ paste0(Var1,Var2)
-            , T ~ paste0(Var2,Var1)
-          )
-        ) %>%
-        dplyr::select(-Var1, -Var2) %>%
-        dplyr::filter(V1 != V2) %>%
-        .[!duplicated(.$permutation),] %>%
-        dplyr::left_join(firstRow[,c('V2', 'v1timesBetterThanV2')], by = c('V1' = 'V2')) %>%
-        dplyr::rename(baseToV1 = v1timesBetterThanV2) %>%
-        dplyr::left_join(firstRow[,c('V2', 'v1timesBetterThanV2')], by = 'V2') %>%
-        dplyr::rename(baseToV2 = v1timesBetterThanV2) %>%
-        dplyr::mutate(
-          v2ToV1 = baseToV2/baseToV1
-          , inferredPoints = (100*v2ToV1)/(1+v2ToV1)
-        ) %>%
-        dplyr::select(V1, V2, permutation, inferredPoints)
-      
-      weightsForKeyComps <- bind_rows(firstRow[,c('V1', 'V2', 'permutation', 'points')], idf)
-      
-      keyComps %<>% left_join(weightsForKeyComps[, c('permutation', 'points', 'inferredPoints')], by = 'permutation')
-      
-      # You can either stop here and show the user the implied points, or----
-      # ask the user to enter points to check for consistency. I'm going to just use the implied points.
-      keyComps %<>% dplyr::mutate(
-        points = ifelse(is.na(points), inferredPoints, points)
+ui <- dashboardPage( 
+dashboardHeader(title = 'Choice Coach'),
+dashboardSidebar(),
+dashboardBody(
+  fluidRow(box(
+    textInput('questionInput', label = 'Define Your Question')
+    , actionButton('setObjectives', label = 'Define Objective')
+  ))
+  # , conditionalPanel()
+    , fluidRow(box(
+      tags$div(id = 'placeholder')
+      , actionButton('newObjectiveButton', label = 'Add Objective')
+      , p()
+      , actionButton('removeObjectiveButton', label = 'Remove Objective')
+      , p()
+      , actionButton('compareObjectivesButton', label = 'Compare Objectives')
+    ))
+    , fluidRow(
+      box(
+        tags$div(id = 'placeholderSlider')
+        # , dataTableOutput('dt')
+        # , verbatimTextOutput('rt')
+        , actionButton('createObjWeightButton', label = 'Calculate Objective Weights')
+        # , dataTableOutput('objPts')
       )
-      
-      objectiveWeights <- objPerm %>% 
-        dplyr::left_join(keyComps[,c('V1', 'V2', 'points')], by = c('V1', 'V2')) %>%
-        dplyr::arrange(permutation, points) %>%
-        group_by(permutation) %>%
-        dplyr::mutate(
-          points = ifelse(!is.na(dplyr::lag(points)), 100 - dplyr::lag(points), points)
-          , points = ifelse(is.na(points), 50, points)
-          , order = as.numeric(order)
-        ) %>%
-        dplyr::arrange(order) %>%
-        ungroup() %>%
-        group_by(V2) %>%
-        dplyr::mutate(
-          ratio = points / (100-points)
-          , normalizedRatio = ratio / sum(ratio)
-        ) %>%
-        ungroup() %>%
-        group_by(V1) %>%
-        dplyr::summarise(Weights = mean(normalizedRatio)) %>%
-        ungroup() %>%
-        dplyr::rename(Objectives = V1) %>%
-        dplyr::arrange(desc(Weights), Objectives)
-      
-      objectiveWeights$Objectives <- factor(objectiveWeights$Objectives, levels = objectiveWeights$Objectives)
-      
-      
-      p <- ggplot(objectiveWeights, aes(x = Objectives, y = Weights)) +
-        geom_bar(stat = 'identity', fill = 'steelblue') +
-        theme_minimal() +
-        labs(title = 'Objective Weights')
-      ggplotly(p)
+      , box(
+        plotlyOutput('obWeightDonut')
+      )
+    )
+    , fluidRow(
+      box(
+        tags$div(id = 'placeholderOpt')
+        , actionButton('newOptionButton', label = 'Add Options')
+        , p()
+        , actionButton('removeOptionButton', label = 'Remove Option')
+        , p()
+        , actionButton('compareOptionsButton', label = 'Compare Options')
+      )
+    )
+    , fluidRow(
+      box(
+        tags$div(id = 'placeholderSliderOpt')
+        # , dataTableOutput('dtOpt')
+        , actionButton('finalEvaluationButton', label = 'Make the final evaluation')
+      )
+      , box(
+        plotlyOutput('finalPlotScaled')
+        # , dataTableOutput('opPoints')
+      )
+    )
+  )
+)
+# SERVER----
+server <- function(input, output) {
+  # Objective addition and removal----
+  insertedObj <- c() # Keep track of objectives inserted and removed
+  observeEvent(input$newObjectiveButton, {
+    btn <- length(insertedObj)+1
+    id <- paste0('objective_', btn)
+    insertUI(
+      selector = '#placeholder'
+      # Wrap element in a div with id for ease of removal
+      , ui = tags$div(
+        textInput(inputId = paste0('objective_', btn)
+                  , label = paste0('Objective ', btn))
+        , id = id)
+    )
+    insertedObj <<- c(insertedObj, id)
+  })
+  observeEvent(input$removeObjectiveButton, {
+    removeUI(
+      # Pass in appropriate div id
+      selector <- paste0('#', insertedObj[length(insertedObj)])
+    )
+    insertedObj <<- insertedObj[-length(insertedObj)]
+  })
+  
+  # Objective sliders----
+  insertedObjComp <- c()
+  observeEvent(input$compareObjectivesButton,{
+    # Remove objectives if they already exist
+    if(length(insertedObjComp) > 0){
+      for(l in 1:length(insertedObjComp)){
+        removeUI(
+          selector <- paste0('#', insertedObjComp[1])
+        )
+      }
+      insertedObjComp <<- c()
+    }
+    # Create comparison df
+    # numCompsObj <- choose(length(insertedObj), 2) # Number of unique pairwise comparisons
+    objComps <- expand.grid(insertedObj, insertedObj, stringsAsFactors = F) %>%
+      dplyr::rename(v1 = Var2, v2 = Var1) %>%
+      dplyr::mutate(
+        permutation = case_when(
+          v2 > v1 ~ paste0(v1, '__', v2)
+          , T ~ paste0(v2, '__', v1)
+        )
+        , order = 1:nrow(.)
+      ) %>%
+      dplyr::filter(v1 != v2) %>%
+      .[!duplicated(.$permutation),] %>%
+      dplyr::mutate(
+        rowNum = gsub('.*_', '', v1) %>% as.numeric()
+        , colNum = gsub('.*_', '', v2) %>% as.numeric()
+      )
+    
+    # Use comparison df to create sliders
+    # output$rt <- renderPrint({input$objective_1})
+    newCol <- c()
+    for(i in 1:nrow(objComps)){
+      sliderName <- paste0(input[[objComps$v1[i]]], ' vs ', input[[objComps$v2[i]]])
+      newCol <- c(newCol, sliderName)
+      btnObjComp <- length(insertedObjComp)+1
+      idObjComp <- paste0('objComp_', btnObjComp)
+      insertUI(
+        selector = '#placeholderSlider'
+        , ui = tags$div(sliderInput(inputId = paste0('objectiveComparison_', i)
+                                    , label = h3(sliderName)
+                                    , min = 0, max = 100, value = 50)
+                        , id = idObjComp
+                        )
+        )
+      insertedObjComp <<- c(insertedObjComp, idObjComp)
+    }
+    objComps$sliderNames <- newCol
+    objComps <<- objComps
+    # output$dt <- renderDataTable({
+    #   objComps
+    # })
+    
+  })
+  
+  # Objective weights and donut chart----
+  observeEvent(input$createObjWeightButton, {
+    # Harvest comparison points
+    objComps$points <- NA
+    objComps$objectiveName <- NA
+    for(r in 1:nrow(objComps)){
+      objComps$points[r] <- 100 - input[[paste0('objectiveComparison_', r)]]
+      objComps$objectiveName1[r] <- input[[objComps$v1[r]]]
+      objComps$objectiveName2[r] <- input[[objComps$v2[r]]]
+    }
+
+    # Create point matrix
+    oPoints <- objComps
+    # Opposite cell
+    for(r in 1:nrow(objComps)){
+      newRow <- data.frame(v2 = objComps$v1[r]
+                           , v1 = objComps$v2[r]
+                           , permutation = paste0(objComps$v2[r], '__', objComps$v1[r])
+                           , rowNum = objComps$colNum[r]
+                           , colNum = objComps$rowNum[r]
+                           , points = 100 - objComps$points[r]
+                           , objectiveName1 = objComps$objectiveName2[r]
+                           , objectiveName2 = objComps$objectiveName1[r]
+                           )
+      oPoints %<>% bind_rows(newRow)
+    }
+    # Diagonal
+    for(d in 1:(max(objComps$rowNum)+1)){
+      newRow <- data.frame(v2 = paste0('objective_', d)
+                           , v1 = paste0('objective_', d)
+                           , permutation = paste0('objective_', d, '__objective_', d)
+                           , rowNum = d
+                           , colNum = d
+                           , points = 50
+                           , objectiveName1 = input[[paste0('objective_', d)]]
+                           , objectiveName2 = input[[paste0('objective_', d)]])
+      oPoints %<>% bind_rows(newRow)
+    }
+    # Point only df
+    oPoints %<>%
+      dplyr::arrange(rowNum, colNum)
+    
+    # Calculate weights and sd
+    owsdObjectives <<- ptw(oPoints, nameCol = 'objectiveName1', obOp = 'objective')
+    
+    # Plot the objective weights as a donut
+    output$obWeightDonut <- renderPlotly({
+      plot_ly(data = owsdObjectives
+              , labels = ~objective
+              , values = ~weights
+              , textinfo = 'label+percent'
+      ) %>%
+        add_pie(hole = .6) %>%
+        layout(title = "Objective Weights",  showlegend = F,
+               xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+               yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
     })
   })
-  
-  
-  
-  ########### AUTHENTICATION ###########
-  USER <- reactiveValues(Logged = F)
 
-  # output$text1 <- renderText(ls())
-  observe({
-    if (USER$Logged == FALSE) {
-      if (!is.null(input$Login)) {
-        if (input$Login > 0) {
-          Username <- isolate(input$userName)
-          Password <- isolate(input$passwd)
-          Id.username <- if(Username == ""){1}else{0} # put username in quotes
-          Id.password <- if(Password == ""){1}else{0} # put pw in quotes
-          # Notification of wrong unsername/password
-          if(Id.username == 0 | Id.password == 0){
-            loginNotification <<- showNotification(
-              ui = "Incorrect Username/Password",
-              # duration = 5, 
-              closeButton = T,
-              type = "error"
-            )
-          }
-          if (Id.username > 0 & Id.password > 0){
-            if (Id.username == Id.password) {
-              loginNotification <<- showNotification(
-                ui = "Loading Data",
-                duration = 180,
-                closeButton = T,
-                type = "default"
-              )
-              
-              # Give signal to set up the rest of the dashboard----
-              USER$Logged <<- TRUE
-              # cat(input$sidebarPanel, "\n")
-              isolate({updateTabItems(session, "tabs", "importData")}) # Selects the importData tab after logging in
-              # Remove the notification----
-              removeNotification(loginNotification)
-            }
-          }
-        }
+  
+  # Option addition and removal----
+  insertedOpt <- c() # Keep track of options inserted and removed
+  observeEvent(input$newOptionButton, {
+    btnOpt <- length(insertedOpt)+1
+    idOpt <- paste0('option_', btnOpt)
+    insertUI(
+      selector = '#placeholderOpt'
+      # Wrap element in a div with id for ease of removal
+      , ui = tags$div(
+        textInput(inputId = paste0('option_', btnOpt)
+                  , label = paste0('Option ', btnOpt))
+        , id = idOpt)
+    )
+    insertedOpt <<- c(insertedOpt, idOpt)
+  })
+  observeEvent(input$removeOptionButton, {
+    removeUI(
+      # Pass in appropriate div id
+      selector <- paste0('#', insertedOpt[length(insertedOpt)])
+    )
+    insertedOpt <<- insertedOpt[-length(insertedOpt)]
+  })
+  
+  # Option sliders for each objective----
+  insertedOptComp <- c()
+  observeEvent(input$compareOptionsButton,{
+    # Remove options if they already exist
+    if(length(insertedOptComp) > 0){
+      for(l in 1:length(insertedOptComp)){
+        removeUI(
+          selector <- paste0('#', insertedOptComp[1])
+        )
+      }
+      insertedOptComp <<- c()
+    }
+    # Create comparison df for options
+    optComps <- data.frame()
+    for(obj in 1:length(insertedObj)){
+      optCompsTemp <- expand.grid(insertedOpt, insertedOpt, stringsAsFactors = F) %>%
+        dplyr::rename(v1 = Var2, v2 = Var1) %>%
+        dplyr::mutate(
+          permutation = case_when(
+            v2 > v1 ~ paste0(v1, '__', v2)
+            , T ~ paste0(v2, '__', v1)
+          )
+          , order = 1:nrow(.)
+          , objective = obj
+        ) %>%
+        dplyr::filter(v1 != v2) %>%
+        .[!duplicated(.$permutation),] %>%
+        dplyr::mutate(
+          rowNum = gsub('.*_', '', v1) %>% as.numeric()
+          , colNum = gsub('.*_', '', v2) %>% as.numeric()
+        )
+      optComps %<>% bind_rows(optCompsTemp)
+      
+    }
+    
+    # Use optComps df to create sliders
+    newCol <- c()
+    optComps$optionName1 <- NA
+    optComps$optionName2 <- NA
+    optComps$objectiveName <- NA
+    for(i in 1:nrow(optComps)){
+      btnOptComp <- length(insertedOptComp)+1
+      idOptComp <- paste0('optComp_', btnOptComp)
+      sliderName <- paste0(input[[optComps$v1[i]]], ' vs ', input[[optComps$v2[i]]], ' for ', input[[paste0('objective_', optComps$objective[i])]])
+      optComps$optionName1[i] <- input[[optComps$v1[i]]]
+      optComps$optionName2[i] <- input[[optComps$v2[i]]]
+      optComps$objectiveName[i] <- input[[paste0('objective_', optComps$objective[i])]]
+      newCol <- c(newCol, sliderName)
+      insertUI(
+        selector = '#placeholderSliderOpt'
+        , ui = tags$div(sliderInput(inputId = paste0('optionComparison_', i, '__objective_', optComps$objective[i])
+                                    , label = h3(sliderName)
+                                    , min = 0, max = 100, value = 50)
+                        , id = idOptComp
+        )
+      )
+      insertedOptComp <<- c(insertedOptComp, idOptComp)
+    }
+    optComps$sliderNames <- newCol
+    
+    optComps <<- optComps
+    output$dtOpt <- renderDataTable({
+      optComps
+    })
+    
+  })
+  
+  # Option Comparisons and final chart----
+  observeEvent(input$finalEvaluationButton, {
+    # Harvest optioncomparison points
+    optComps$points <- NA
+    for(r in 1:nrow(optComps)){
+      optComps$points[r] <- 100 - input[[paste0('optionComparison_', r, '__objective_', optComps$objective[r])]]
+    }
+    
+
+    # Create option point matrix
+    opPoints <- optComps
+    # Opposite cell for each objective
+    objectives <- unique(opPoints$objective)
+    for(o in 1:length(objectives)){
+      opPointsObj <- opPoints %>% dplyr::filter(objective == objectives[o])
+      for(r in 1:nrow(opPointsObj)){
+        newRow <- data.frame(v2 = opPointsObj$v1[r]
+                             , v1 = opPointsObj$v2[r]
+                             , permutation = paste0(opPointsObj$v2[r], '__', opPointsObj$v1[r])
+                             , rowNum = opPointsObj$colNum[r]
+                             , colNum = opPointsObj$rowNum[r]
+                             , points = 100 - opPointsObj$points[r]
+                             , objective = objectives[o]
+                             , objectiveName = opPointsObj$objectiveName[r]
+                             , optionName1 = opPointsObj$optionName2[r]
+                             , optionName2 = opPointsObj$optionName1[r]
+        )
+        opPoints %<>% bind_rows(newRow)
       }
     }
-  })
-  # Dynamic sidebar config----
-  output$sidebarpanel <- renderUI({
-    if(USER$Logged == TRUE){
-      div(
-        sidebarUserPanel(
-          h5(paste0(name = isolate(input$userName)))
-          , subtitle = a(icon("usr"), icon("user"), "Logout", href = login.page)
-          # , image = "https://www.secondcity.com/wp-content/uploads/2014/09/SC_Alumni_Farley_Chris_600x600_001.jpg" # Chris Farley
-          , image = 'https://localtvkfsm.files.wordpress.com/2019/09/mgn_1280x960_50614k00-kzoku.jpg?quality=85&strip=all&w=300&h=225' # Batman
-        )
-        # , h6(paste0("Last update: ", as.character(maxDate)))
-        ,br()
-        # , verbatimTextOutput("testText")
-        , sidebarMenu(id = "tabs",
-          menuItem("Step 1: Define Objectives", tabName = "defineObjectives", icon = icon("arrow-alt-circle-up"))
-          , menuItem("Step 2: Create Objective Weights", tabName = "objWeights", icon = icon("arrow-alt-circle-up"))
-          , conditionalPanel(
-            condition = "input.workPlanButton > 0"
-            , radioButtons("projTenthRadio", "Summary Level"
-                           , choices = list("Project" = "Project"
-                                            , "Tenth" = "Tenth")
-                           , selected = "Project"
-                           )
-            )
-          )
-        , br()
-        , tags$a(href = giggHomepageUrl
-                 , img(src = giggTrademarkUrl
-                       , title = "Gigg Logo and Link"
-                       , height = "40px"
-                       , width = "100px")
-                 , style = "padding-left:30px;"
-        )
-      )
-    }
-  })
-  # Dynamic body config----
-  output$body <- renderUI({
-    if(USER$Logged == T){
-      removeClass(selector = "body", class = "sidebar-collapse")
-      tabItems(
-        # Step 1: Define Objectives----
-        tabItem(tabName = 'defineObjectives'
-                , fluidRow(
-                  box(width = 12
-                      , collapsible = T
-                      , title = 'Identify the Objectives'
-                      , textInput("objective1", label = h3("Text input"), value = "Reliability")
-                      , textInput("objective2", label = h3("Text input"), value = "Efficiency")
-                      , textInput("objective3", label = h3("Text input"), value = "Cost")
-                      , actionButton("createObjWeights", label = "Create Objective Weights")
-                  )
-                )
-                )
-        # Step 2: Objective Weights----
-        , tabItem(tabName = 'objWeights'
-                , fluidRow(
-                  box(width = 12
-                      , collapsible = T
-                      , title = 'Create Objective Weights'
-                      # , output$view <- renderTable({
-                      #   USER$firstRow
-                      # })
-                      , uiOutput("objComparisonSliders")
-                      , actionButton("viewObjWeights", label = "View Objective Weights")
-                  )
-                  , box(width = 12
-                      , collapsible = T
-                      , title = 'Visualize Objective Weights'
-                      , plotlyOutput('objWeightsChart')
-                      , actionButton("optWeights", label = "Compare Options")
-                  )
-                )
-        )
-        # Step 3: Option Weights---
-        , tabItem(tabName = 'optComparison'
-                  , fluidRow(
-                    box(width = 12
-                        , collapsible = T
-                        , title = 'Option Comparison'
-                        
-                    )
-                  )
-        )
 
-      )
-    }else{
-      login
+    
+    # Diagonal
+    for(o in 1:length(objectives)){
+      opPointsObj <- opPoints %>% dplyr::filter(objective == objectives[o])
+      for(d in 1:(max(opPointsObj$rowNum))){
+        newRow <- data.frame(v2 = paste0('option_', d)
+                             , v1 = paste0('option_', d)
+                             , permutation = paste0('option_', d, '__option_', d)
+                             , rowNum = d
+                             , colNum = d
+                             , points = 50
+                             , objective = objectives[o]
+                             , objectiveName = opPointsObj$objectiveName[d]
+                             , optionName1 = input[[paste0('option_', d)]]
+                             , optionName2 = input[[paste0('option_', d)]]
+                             )
+        opPoints %<>% bind_rows(newRow)
+      }
     }
+    
+    opPoints %<>% 
+      dplyr::arrange(objective, rowNum, colNum)
+    
+    # Calculate weights and sd for each option
+    # Point only df
+    owsdOp <- data.frame()
+    for(o in objectives){
+      opPointsObj <- opPoints %>% dplyr::filter(objective == o)
+      owsd <- ptw(opPointsObj, nameCol = 'optionName1', obOp = 'option')
+      owsd$objective <- o
+      owsdOp %<>% bind_rows(owsd)
+    }
+    
+    # Join objective name to the owsdOP df
+    owsdOp <- opPoints %>%
+      select(objective, objectiveName) %>%
+      left_join(owsdObjectives[,c('objective', 'weights')], by = c('objectiveName' = 'objective')) %>%
+      rename(objectiveWeights = weights) %>%
+      unique() %>%
+      right_join(owsdOp, by = 'objective') %>%
+      mutate(
+        optionScore = objectiveWeights*weights
+      ) %>%
+      group_by(option) %>%
+      mutate(
+        totalScore = sum(optionScore)
+      ) %>%
+      ungroup() %>%
+      mutate(
+        totalScoreRank = rank(-totalScore, na.last = T, ties.method = 'first')
+        , optionScoreScaled = optionScore / max(totalScore)
+      ) %>%
+      arrange(totalScoreRank) %>%
+      mutate(
+        option = fct_inorder(option)
+      )
+    
+    # Plot
+    output$finalPlotScaled <- renderPlotly({
+      plot_ly(data = owsdOp, x = ~option, y = ~optionScoreScaled, type = 'bar'
+              , name = ~objectiveName, color = ~objectiveName) %>%
+        layout(yaxis = list(title = 'Percent of Best Option')
+               , xaxis = list(title = 'Option')
+               , barmode = 'stack')
+    })
+    
+    
+      
+    
+    # Group by option and 
+    output$opPoints <- renderDataTable({
+      datatable(owsdOp,
+                options = list(scrollX = TRUE))
+    })
   })
   
 }
 
-#### RUN THE APP ####
-shinyApp(ui = ui, server = server)
-
+shinyApp(ui, server)

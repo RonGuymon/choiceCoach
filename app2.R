@@ -9,55 +9,112 @@ library(plotly)
 library(DT)
 source('choiceCoachFunctions.R')
 # UI----
-ui <- dashboardPage(
-  dashboardHeader(title = 'Choice Coach'),
-  dashboardSidebar(),
-  dashboardBody(
-    fluidRow(box(
-      tags$div(id = 'placeholder')
-      , actionButton('newObjectiveButton', label = 'Add Objective')
-      , p()
-      , actionButton('removeObjectiveButton', label = 'Remove Objective')
-      , p()
-      , actionButton('compareObjectivesButton', label = 'Compare Objectives')
-    ))
-    , fluidRow(
-      box(
-        tags$div(id = 'placeholderSlider')
-        # , dataTableOutput('dt')
-        # , verbatimTextOutput('rt')
-        , actionButton('createObjWeightButton', label = 'Calculate Objective Weights')
-        , dataTableOutput('objPts')
-      )
-      , box(
-        plotlyOutput('obWeightDonut')
-      )
-    )
-    , fluidRow(
-      box(
-        tags$div(id = 'placeholderOpt')
-        , actionButton('newOptionButton', label = 'Add Options')
-        , p()
-        , actionButton('removeOptionButton', label = 'Remove Option')
-        , p()
-        , actionButton('compareOptionsButton', label = 'Compare Options')
-      )
-    )
-    , fluidRow(
-      box(
-        tags$div(id = 'placeholderSliderOpt')
-        , dataTableOutput('dtOpt')
-        , actionButton('finalEvaluationButton', label = 'Make the final evaluation')
-      )
-      , box(
-        plotlyOutput('finalPlot')
-        , dataTableOutput('opPoints')
-      )
-    )
+header <- dashboardHeader(
+  title = 'Choice Coach'#   span(tags$a(href = giggHomepageUrl
+  #                     , tags$img(src='connorLogo.png'
+  #                                , title = "Logo"
+  #                                , height = "45px"
+  #                                , width = "100px"
+  #                                , position = "center")
+  #                     # , style = "padding-left:30px;"
+  # ))
+  )
+sidebar <- dashboardSidebar(
+  # sidebarUserPanel(), 
+  sidebarMenu(id = 'tabs'
+                , menuItem('Define Question', tabName = 'defineQuestion')
+                , menuItem('Objectives', tabName = 'objectives')
+                , menuItem('Options', tabName = 'options')
   )
 )
+body <- dashboardBody(
+    tabItems(
+      tabItem(tabName = 'defineQuestion'
+              , fluidRow(
+                box(width = 12, title = 'What is Your Question'
+                  , textInput('questionInput', label = 'Define Your Question')
+                  , actionButton('setObjectives', label = 'Define Objective')
+                ))
+              )
+      , tabItem(tabName='objectives'
+                , fluidRow(
+                  box(width = 12, title = 'Identify Objectives'
+                      , tags$div(id = 'placeholder')
+                      , actionButton('newObjectiveButton', label = 'Add Objective')
+                      , p()
+                      , actionButton('removeObjectiveButton', label = 'Remove Objective')
+                      , p()
+                      , actionButton('compareObjectivesButton', label = 'Compare Objectives')
+                  )
+                )
+                , conditionalPanel(condition = 'input.compareObjectivesButton >= 1'
+                                   , fluidRow(
+                                     box(width = 12, title = 'Compare Objective Importance'
+                                         , tags$div(id = 'placeholderSlider')
+                                         # , dataTableOutput('dt')
+                                         # , verbatimTextOutput('rt')
+                                         , actionButton('createObjWeightButton', label = 'Calculate Objective Weights')
+                                         # , dataTableOutput('objPts')
+                                     )
+                                   )
+                                   
+                )
+                , conditionalPanel(condition = 'input.createObjWeightButton >= 1'
+                                   , fluidRow(
+                                     box(width = 12, title = 'Consider Objective Weights'
+                                         , plotlyOutput('obWeightDonut')
+                                         , actionButton('defineOptionsButton', 'Define Options')
+                                     )
+                                   )
+                                   
+                )
+      )
+      , tabItem(tabName = 'options'
+                , fluidRow(
+                  box(width = 12, title = 'Define Options'
+                      , tags$div(id = 'placeholderOpt')
+                      , actionButton('newOptionButton', label = 'Add Options')
+                      , p()
+                      , actionButton('removeOptionButton', label = 'Remove Option')
+                      , p()
+                      , actionButton('compareOptionsButton', label = 'Compare Options')
+                  )
+                )
+                , conditionalPanel(condition = 'input.compareOptionsButton >= 1'
+                                   , fluidRow(
+                                     box(width = 12, title = 'Compare Options for Each Objective'
+                                         , tags$div(id = 'placeholderSliderOpt')
+                                         # , dataTableOutput('dtOpt')
+                                         , actionButton('finalEvaluationButton', label = 'Make the final evaluation')
+                                     )
+                                   )
+                )
+                , conditionalPanel(condition = 'input.finalEvaluationButton >= 1'
+                                   , fluidRow(
+                                     box(width = 12, title = 'Overal Results'
+                                         , plotlyOutput('finalPlotScaled')
+                                         # , dataTableOutput('opPoints')
+                                     )
+                                   )
+                )
+      )
+    )
+)
+ui <- dashboardPage(title = 'Choice Coach', header, sidebar, body
+                    # , tags$head(
+                    #   tags$link(rel="shortcut icon"
+                    #             , href="favicon.ico")
+                    # )
+)
 # SERVER----
-server <- function(input, output) {
+server <- function(input, output, session) {
+  observeEvent(input$setObjectives, {
+    question <<- input$questionInput
+    isolate({updateTabItems(session, "tabs", "objectives")}) # Selects the objectives tab after entering the question
+  })
+  observeEvent(input$defineOptionsButton, {
+    isolate({updateTabItems(session, "tabs", "options")}) # Selects the options tab after entering the question
+  })
   # Objective addition and removal----
   insertedObj <- c() # Keep track of objectives inserted and removed
   observeEvent(input$newObjectiveButton, {
@@ -81,7 +138,7 @@ server <- function(input, output) {
     insertedObj <<- insertedObj[-length(insertedObj)]
   })
   
-  # Elicit objective weights----
+  # Objective sliders----
   insertedObjComp <- c()
   observeEvent(input$compareObjectivesButton,{
     # Remove objectives if they already exist
@@ -137,7 +194,7 @@ server <- function(input, output) {
     
   })
   
-  # Calculate weights and display pie chart of objectives----
+  # Objective weights and donut chart----
   observeEvent(input$createObjWeightButton, {
     # Harvest comparison points
     objComps$points <- NA
@@ -220,7 +277,7 @@ server <- function(input, output) {
     insertedOpt <<- insertedOpt[-length(insertedOpt)]
   })
   
-  # Elicit option weights for each objective----
+  # Option sliders for each objective----
   insertedOptComp <- c()
   observeEvent(input$compareOptionsButton,{
     # Remove options if they already exist
@@ -287,7 +344,7 @@ server <- function(input, output) {
     
   })
   
-  # Calculate comparisons among options and create final chart----
+  # Option Comparisons and final chart----
   observeEvent(input$finalEvaluationButton, {
     # Harvest optioncomparison points
     optComps$points <- NA
@@ -361,11 +418,6 @@ server <- function(input, output) {
       mutate(
         optionScore = objectiveWeights*weights
       ) %>%
-      group_by(objectiveName) %>%
-      mutate(
-        scaledOptionScore = optionScore/max(optionScore)
-      ) %>%
-      ungroup() %>%
       group_by(option) %>%
       mutate(
         totalScore = sum(optionScore)
@@ -373,14 +425,21 @@ server <- function(input, output) {
       ungroup() %>%
       mutate(
         totalScoreRank = rank(-totalScore, na.last = T, ties.method = 'first')
+        , optionScoreScaled = optionScore / max(totalScore)
+      ) %>%
+      arrange(totalScoreRank) %>%
+      mutate(
+        option = fct_inorder(option)
       )
     
     # Plot
-    output$finalPlot <- renderPlotly({
-      plot_ly(data = owsdOp, x = ~option, y = ~optionScore, type = 'bar'
-             , name = ~objectiveName, color = ~objectiveName) %>%
-        layout(yaxis = list(title = 'Option Score'), barmode = 'stack')
-      })
+    output$finalPlotScaled <- renderPlotly({
+      plot_ly(data = owsdOp, x = ~option, y = ~optionScoreScaled, type = 'bar'
+              , name = ~objectiveName, color = ~objectiveName) %>%
+        layout(yaxis = list(title = 'Percent of Best Option')
+               , xaxis = list(title = 'Option')
+               , barmode = 'stack')
+    })
     
     
       
