@@ -8,148 +8,61 @@ library(lubridate)
 library(plotly)
 library(DT)
 source('choiceCoachFunctions.R')
-
-# Session timeout info----
-timeoutSeconds <- 1*15
-
-inactivity <- sprintf("function idleTimer() {
-var t = setTimeout(logout, %s);
-window.onmousemove = resetTimer; // catches mouse movements
-window.onmousedown = resetTimer; // catches mouse movements
-window.onclick = resetTimer;     // catches mouse clicks
-window.onscroll = resetTimer;    // catches scrolling
-window.onkeypress = resetTimer;  //catches keyboard actions
-
-function logout() {
-Shiny.setInputValue('timeOut', '%ss')
-}
-
-function resetTimer() {
-clearTimeout(t);
-t = setTimeout(logout, %s);  // time is in milliseconds (1000 is 1 second)
-}
-}
-idleTimer();", timeoutSeconds*1000, timeoutSeconds, timeoutSeconds*1000)
-
 # UI----
-header <- dashboardHeader(
-  title = 'Choice Coach'#   span(tags$a(href = giggHomepageUrl
-  #                     , tags$img(src='connorLogo.png'
-  #                                , title = "Logo"
-  #                                , height = "45px"
-  #                                , width = "100px"
-  #                                , position = "center")
-  #                     # , style = "padding-left:30px;"
-  # ))
-  )
-sidebar <- dashboardSidebar(
-  # sidebarUserPanel(), 
-  sidebarMenu(id = 'tabs'
-                , menuItem('Define Question', tabName = 'defineQuestion')
-                , menuItem('Objectives', tabName = 'objectives')
-                , menuItem('Options', tabName = 'options')
-  )
-)
-body <- dashboardBody(
-    tabItems(
-      tabItem(tabName = 'defineQuestion'
-              , fluidRow(
-                box(width = 12, title = 'What is Your Question'
-                  , textInput('questionInput', label = 'Define Your Question')
-                  , actionButton('setObjectives', label = 'Define Objective')
-                ))
-              )
-      , tabItem(tabName='objectives'
-                , fluidRow(
-                  box(width = 12, title = 'Identify Objectives'
-                      , tags$div(id = 'placeholder')
-                      , actionButton('newObjectiveButton', label = 'Add Objective')
-                      , p()
-                      , actionButton('removeObjectiveButton', label = 'Remove Objective')
-                      , p()
-                      , actionButton('compareObjectivesButton', label = 'Compare Objectives')
-                  )
-                )
-                , conditionalPanel(condition = 'input.compareObjectivesButton >= 1'
-                                   , fluidRow(
-                                     box(width = 12, title = 'Compare Objective Importance'
-                                         , tags$div(id = 'placeholderSlider')
-                                         # , dataTableOutput('dt')
-                                         # , verbatimTextOutput('rt')
-                                         , actionButton('createObjWeightButton', label = 'Calculate Objective Weights')
-                                         # , dataTableOutput('objPts')
-                                     )
-                                   )
-                                   
-                )
-                , conditionalPanel(condition = 'input.createObjWeightButton >= 1'
-                                   , fluidRow(
-                                     box(width = 12, title = 'Consider Objective Weights'
-                                         , plotlyOutput('obWeightDonut')
-                                         , actionButton('defineOptionsButton', 'Define Options')
-                                     )
-                                   )
-                                   
-                )
+ui <- dashboardPage( 
+dashboardHeader(title = 'Choice Coach'),
+dashboardSidebar(),
+dashboardBody(
+  fluidRow(box(
+    textInput('questionInput', label = 'Define Your Question')
+    , actionButton('setObjectives', label = 'Define Objective')
+  ))
+  # , conditionalPanel()
+    , fluidRow(box(
+      tags$div(id = 'placeholder')
+      , actionButton('newObjectiveButton', label = 'Add Objective')
+      , p()
+      , actionButton('removeObjectiveButton', label = 'Remove Objective')
+      , p()
+      , actionButton('compareObjectivesButton', label = 'Compare Objectives')
+    ))
+    , fluidRow(
+      box(
+        tags$div(id = 'placeholderSlider')
+        # , dataTableOutput('dt')
+        # , verbatimTextOutput('rt')
+        , actionButton('createObjWeightButton', label = 'Calculate Objective Weights')
+        # , dataTableOutput('objPts')
       )
-      , tabItem(tabName = 'options'
-                , fluidRow(
-                  box(width = 12, title = 'Define Options'
-                      , tags$div(id = 'placeholderOpt')
-                      , actionButton('newOptionButton', label = 'Add Options')
-                      , p()
-                      , actionButton('removeOptionButton', label = 'Remove Option')
-                      , p()
-                      , actionButton('compareOptionsButton', label = 'Compare Options')
-                  )
-                )
-                , conditionalPanel(condition = 'input.compareOptionsButton >= 1'
-                                   , fluidRow(
-                                     box(width = 12, title = 'Compare Options for Each Objective'
-                                         , tags$div(id = 'placeholderSliderOpt')
-                                         # , dataTableOutput('dtOpt')
-                                         , actionButton('finalEvaluationButton', label = 'Make the final evaluation')
-                                     )
-                                   )
-                )
-                , conditionalPanel(condition = 'input.finalEvaluationButton >= 1'
-                                   , fluidRow(
-                                     box(width = 12, title = 'Overal Results'
-                                         , plotlyOutput('finalPlotScaled')
-                                         # , dataTableOutput('opPoints')
-                                     )
-                                   )
-                )
+      , box(
+        plotlyOutput('obWeightDonut')
       )
     )
-)
-ui <- dashboardPage(title = 'Choice Coach', header, sidebar, body
-                    # , tags$head(
-                    #   tags$link(rel="shortcut icon"
-                    #             , href="favicon.ico")
-                    # )
+    , fluidRow(
+      box(
+        tags$div(id = 'placeholderOpt')
+        , actionButton('newOptionButton', label = 'Add Options')
+        , p()
+        , actionButton('removeOptionButton', label = 'Remove Option')
+        , p()
+        , actionButton('compareOptionsButton', label = 'Compare Options')
+      )
+    )
+    , fluidRow(
+      box(
+        tags$div(id = 'placeholderSliderOpt')
+        # , dataTableOutput('dtOpt')
+        , actionButton('finalEvaluationButton', label = 'Make the final evaluation')
+      )
+      , box(
+        plotlyOutput('finalPlotScaled')
+        # , dataTableOutput('opPoints')
+      )
+    )
+  )
 )
 # SERVER----
-server <- function(input, output, session) {
-  # Timeout from session inactivity----
-  observeEvent(input$timeOut, { 
-    print(paste0("Session (", session$token, ") timed out at: ", Sys.time()))
-    showModal(modalDialog(
-      title = "Timeout",
-      paste("Session timeout due to", input$timeOut, "inactivity -", Sys.time()),
-      footer = NULL
-    ))
-    session$close()
-  })
-  
-  # The other stuff----
-  observeEvent(input$setObjectives, {
-    question <<- input$questionInput
-    isolate({updateTabItems(session, "tabs", "objectives")}) # Selects the objectives tab after entering the question
-  })
-  observeEvent(input$defineOptionsButton, {
-    isolate({updateTabItems(session, "tabs", "options")}) # Selects the options tab after entering the question
-  })
+server <- function(input, output) {
   # Objective addition and removal----
   insertedObj <- c() # Keep track of objectives inserted and removed
   observeEvent(input$newObjectiveButton, {
