@@ -8,6 +8,29 @@ library(lubridate)
 library(plotly)
 library(DT)
 source('choiceCoachFunctions.R')
+
+# Session timeout info----
+timeoutSeconds <- 1*15
+
+inactivity <- sprintf("function idleTimer() {
+var t = setTimeout(logout, %s);
+window.onmousemove = resetTimer; // catches mouse movements
+window.onmousedown = resetTimer; // catches mouse movements
+window.onclick = resetTimer;     // catches mouse clicks
+window.onscroll = resetTimer;    // catches scrolling
+window.onkeypress = resetTimer;  //catches keyboard actions
+
+function logout() {
+Shiny.setInputValue('timeOut', '%ss')
+}
+
+function resetTimer() {
+clearTimeout(t);
+t = setTimeout(logout, %s);  // time is in milliseconds (1000 is 1 second)
+}
+}
+idleTimer();", timeoutSeconds*1000, timeoutSeconds, timeoutSeconds*1000)
+
 # UI----
 header <- dashboardHeader(
   title = 'Choice Coach'#   span(tags$a(href = giggHomepageUrl
@@ -108,6 +131,18 @@ ui <- dashboardPage(title = 'Choice Coach', header, sidebar, body
 )
 # SERVER----
 server <- function(input, output, session) {
+  # Timeout from session inactivity----
+  observeEvent(input$timeOut, { 
+    print(paste0("Session (", session$token, ") timed out at: ", Sys.time()))
+    showModal(modalDialog(
+      title = "Timeout",
+      paste("Session timeout due to", input$timeOut, "inactivity -", Sys.time()),
+      footer = NULL
+    ))
+    session$close()
+  })
+  
+  # The other stuff----
   observeEvent(input$setObjectives, {
     question <<- input$questionInput
     isolate({updateTabItems(session, "tabs", "objectives")}) # Selects the objectives tab after entering the question
