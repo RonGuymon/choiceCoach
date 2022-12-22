@@ -14,7 +14,7 @@ source('choiceCoachFunctions.R')
 # 1 the JavaScript code right here,
 # 2 a tags$script(inactivity) in the body, and 
 # 3 an observeEvent in the server
-timeoutSeconds <- 1*15
+timeoutSeconds <- 60*15
 
 inactivity <- sprintf("function idleTimer() {
 var t = setTimeout(logout, %s);
@@ -52,6 +52,10 @@ sidebar <- dashboardSidebar(
                 , menuItem('Define Question', tabName = 'defineQuestion')
                 , menuItem('Objectives', tabName = 'objectives')
                 , menuItem('Options', tabName = 'options')
+  )
+  , tags$head(
+    tags$link(rel="shortcut icon"
+              , href="favicon.ico")
   )
 )
 body <- dashboardBody(
