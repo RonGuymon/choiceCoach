@@ -10,6 +10,10 @@ library(DT)
 source('choiceCoachFunctions.R')
 
 # Session timeout info----
+# For this to work there are three parts:
+# 1 the JavaScript code right here,
+# 2 a tags$script(inactivity) in the body, and 
+# 3 an observeEvent in the server
 timeoutSeconds <- 1*15
 
 inactivity <- sprintf("function idleTimer() {
@@ -51,7 +55,8 @@ sidebar <- dashboardSidebar(
   )
 )
 body <- dashboardBody(
-    tabItems(
+  tags$script(inactivity)
+    ,tabItems(
       tabItem(tabName = 'defineQuestion'
               , fluidRow(
                 box(width = 12, title = 'What is Your Question'
@@ -126,7 +131,7 @@ body <- dashboardBody(
 ui <- dashboardPage(title = 'Choice Coach', header, sidebar, body
                     # , tags$head(
                     #   tags$link(rel="shortcut icon"
-                    #             , href="favicon.ico")
+                    #             , href="/www/favicon.ico")
                     # )
 )
 # SERVER----
