@@ -133,10 +133,6 @@ body <- dashboardBody(
     )
 )
 ui <- dashboardPage(title = 'Choice Coach', header, sidebar, body
-                    # , tags$head(
-                    #   tags$link(rel="shortcut icon"
-                    #             , href="/www/favicon.ico")
-                    # )
 )
 # SERVER----
 server <- function(input, output, session) {
